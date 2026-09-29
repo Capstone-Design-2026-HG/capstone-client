@@ -3,12 +3,14 @@
   "name": "Search Rating Extension",
   "version": "1.0",
   "permissions": ["storage", "activeTab", "scripting"],
-  "host_permissions": ["https://*/*"],
-
+  "host_permissions": [
+    "https://www.google.com/*",
+    "http://35.172.181.64:8080/*",
+    "http://localhost:8080/*"
+  ],
   "background": {
     "service_worker": "background.js"
   },
-
   "content_scripts": [
     {
       "matches": ["https://www.google.com/*"],

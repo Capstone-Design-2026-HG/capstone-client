@@ -1,4 +1,86 @@
+// 영구 포트로 background와 통신 (sendMessage 타임아웃 문제 방지)
+
+const MOCK_TAG_SETS = [
+  ["뉴스", "속보"],
+  ["광고", "쇼핑"],
+  ["공식사이트"],
+  ["블로그", "후기"],
+  ["유튜브", "영상"],
+  ["위키", "정보"],
+  ["커뮤니티", "Q&A"],
+  ["SNS"],
+  ["논문", "학술"],
+  ["쇼핑몰", "가격비교"],
+  ["포럼", "토론"],
+  ["이미지", "갤러리"],
+];
+
+
+const MOCK_LIKE_COUNTS = [3, 7, 12, 5, 19, 2, 8, 15, 1, 23, 6, 11, 4, 17, 9];
+
+const getMockIndex = (url: string) => {
+  let hash = 0;
+  for (let i = 0; i < url.length; i++) {
+    hash = (hash * 31 + url.charCodeAt(i)) & 0xfffffff;
+  }
+  return Math.abs(hash);
+};
+
+const pendingCallbacks = new Map<number, (data: unknown) => void>();
+let nextMsgId = 0;
+let bgPort = chrome.runtime.connect({ name: "capstone-api" });
+
+const setupPort = (port: chrome.runtime.Port) => {
+  port.onMessage.addListener((msg: { id: number; data: unknown }) => {
+    const cb = pendingCallbacks.get(msg.id);
+    if (cb) {
+      cb(msg.data);
+      pendingCallbacks.delete(msg.id);
+    }
+  });
+  port.onDisconnect.addListener(() => {
+    bgPort = chrome.runtime.connect({ name: "capstone-api" });
+    setupPort(bgPort);
+  });
+};
+setupPort(bgPort);
+
+const bgCall = (
+  message: Record<string, unknown>,
+  callback: (data: unknown) => void
+) => {
+  const id = ++nextMsgId;
+  pendingCallbacks.set(id, callback);
+  bgPort.postMessage({ id, ...message });
+};
+
+type LinkRef = {
+  likeCountEl: HTMLSpanElement;
+  tagWrapper: HTMLDivElement;
+  commentList: HTMLDivElement;
+  setInitialCount: (count: number) => void;
+};
+const linkRefMap = new Map<string, LinkRef>();
+const urlToLinkId = new Map<string, number>();
+
+const makeTagEl = (tag: string) => {
+  const el = document.createElement("span");
+  el.innerText = tag;
+  el.style.padding = "4px 9px";
+  el.style.borderRadius = "100px";
+  el.style.background = "#FFE8B0";
+  el.style.fontSize = "14px";
+  el.style.whiteSpace = "nowrap";
+  el.style.wordBreak = "keep-all";
+  el.style.flexShrink = "0";
+  return el;
+};
+
 const titles = document.querySelectorAll("h3");
+
+const urls = Array.from(document.querySelectorAll("h3"))
+  .map((title) => title.closest("a")?.href)
+  .filter((url): url is string => Boolean(url));
 
 titles.forEach((title) => {
   const anchor = title.closest("a");
@@ -39,23 +121,47 @@ titles.forEach((title) => {
   likeBtn.style.color = "transparent";
 
   const likeCount = document.createElement("span");
-  likeCount.innerText = "11";
+  likeCount.innerText = "0";
   likeCount.style.fontSize = "10px";
   likeCount.style.background = "transparent";
   likeCount.style.opacity = "1";
 
   let liked = false;
+  let currentCount = 0;
 
-  likeBtn.addEventListener("click", () => {
-    liked = !liked;
+  const applyLikeState = (isLiked: boolean, count: number) => {
+    liked = isLiked;
+    currentCount = count;
+    likeCount.innerText = String(count);
+    likeBtn.style.color = isLiked ? "black" : "transparent";
+  };
 
-    if (liked) {
-      likeCount.innerText = String(Number(likeCount.innerText) + 1);
-      likeBtn.style.color = "black";
-    } else {
-      likeCount.innerText = String(Number(likeCount.innerText) - 1);
-      likeBtn.style.color = "white";
-    }
+  likeBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+
+    const prevLiked = liked;
+    const prevCount = currentCount;
+
+    // 낙관적 업데이트: 즉시 UI 반영
+    applyLikeState(!prevLiked, prevLiked ? prevCount - 1 : prevCount + 1);
+
+    console.log("[좋아요] 요청 URL:", anchor.href);
+    bgCall({ type: "TOGGLE_LIKE", url: anchor.href }, (response) => {
+      const res = response as {
+        success: boolean;
+        data: { liked: boolean; likeCount: number };
+      };
+      console.log("[좋아요] 응답:", res);
+      if (!res?.success) {
+        console.warn("[좋아요] 실패 - 롤백. success=false, 응답:", res);
+        applyLikeState(prevLiked, prevCount);
+        return;
+      }
+      console.log(
+        `[좋아요] 성공 - liked=${res.data.liked}, likeCount=${res.data.likeCount}`
+      );
+      applyLikeState(res.data.liked, res.data.likeCount);
+    });
   });
 
   const likeWrapper = document.createElement("div");
@@ -66,17 +172,10 @@ titles.forEach((title) => {
   likeWrapper.appendChild(likeBtn);
 
   // ===== 태그 =====
-  const tags = ["광고성", "교육", "논문"];
-
-  const tagEls = tags.map((tag) => {
-    const el = document.createElement("span");
-    el.innerText = tag;
-    el.style.padding = "4px 9px";
-    el.style.borderRadius = "100px";
-    el.style.background = "#FFE8B0";
-    el.style.fontSize = "14px";
-    return el;
-  });
+  const tagWrapper = document.createElement("div");
+  tagWrapper.style.display = "flex";
+  tagWrapper.style.alignItems = "center";
+  tagWrapper.style.gap = "6px";
 
   // ===== 💬 댓글 =====
   const commentBtn = document.createElement("button");
@@ -104,18 +203,131 @@ titles.forEach((title) => {
   notionBtn.style.cursor = "pointer";
   notionBtn.style.backgroundColor = "white";
 
+  notionBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const title = anchor.querySelector("h3")?.textContent?.trim() ?? "";
+    const url = anchor.href;
+
+    console.log("[Notion] 저장 요청:", {
+      title,
+      url,
+    });
+
+    bgCall(
+      {
+        type: "SAVE_TO_NOTION",
+        title,
+        url,
+      },
+      (response) => {
+        console.log("[Notion] 저장 응답:", response);
+
+        const res = response as {
+          id?: number;
+          notionPageId?: string;
+          notionPageUrl?: string;
+          savedAt?: string;
+          success?: boolean;
+          error?: string;
+        };
+
+        if (res?.error) {
+          console.error("[Notion] 저장 실패:", res.error);
+          alert("Notion 저장에 실패했습니다.");
+          return;
+        }
+
+        console.log("[Notion] 저장 성공");
+        alert("Notion에 저장되었습니다.");
+      }
+    );
+  });
+
+  // ===== Figma =====
+  const figmaBtn = document.createElement("button");
+  const figmaIconHtml = `
+<svg width="16" height="19" viewBox="0 0 16 23" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect x="0" y="0" width="8" height="8" rx="1.5" fill="#F24E1E"/>
+  <rect x="8" y="0" width="8" height="8" rx="1.5" fill="#A259FF"/>
+  <rect x="0" y="8" width="8" height="8" rx="1.5" fill="#FF7262"/>
+  <circle cx="12" cy="12" r="4" fill="#1ABCFE"/>
+  <rect x="0" y="15" width="8" height="8" rx="4" fill="#0ACF83"/>
+</svg>
+  `;
+  figmaBtn.innerHTML = figmaIconHtml;
+  figmaBtn.style.cursor = "pointer";
+  figmaBtn.style.backgroundColor = "white";
+  figmaBtn.style.border = "none";
+
+  let isFigmaCapturing = false;
+
+  figmaBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (isFigmaCapturing) return;
+
+    const title = anchor.querySelector("h3")?.textContent?.trim() ?? "";
+    const url = anchor.href;
+
+    console.log("[Figma] 캡처 요청:", { title, url });
+
+    isFigmaCapturing = true;
+    figmaBtn.disabled = true;
+    figmaBtn.innerHTML = "⏳";
+    figmaBtn.style.fontSize = "14px";
+
+    bgCall(
+      {
+        type: "SAVE_TO_FIGMA",
+        title,
+        url,
+      },
+      (response) => {
+        const res = response as {
+          error?: string;
+          title?: string;
+          url?: string;
+          imageUrl?: string;
+          status?: string;
+        };
+
+        if (res?.error) {
+          console.error("[Figma] 캡처 실패:", res.error);
+          figmaBtn.innerHTML = "✗";
+          figmaBtn.style.color = "#e53e3e";
+        } else {
+          console.log("[Figma] 캡처 성공:", res);
+          console.log("[Figma] imageUrl:", res.imageUrl);
+          figmaBtn.innerHTML = "✓";
+          figmaBtn.style.color = "#38a169";
+        }
+
+        setTimeout(() => {
+          figmaBtn.innerHTML = figmaIconHtml;
+          figmaBtn.style.color = "";
+          figmaBtn.style.fontSize = "";
+          figmaBtn.disabled = false;
+          isFigmaCapturing = false;
+        }, 2000);
+      }
+    );
+  });
+
   const rightBtnWrapper = document.createElement("div");
   rightBtnWrapper.style.display = "flex";
   rightBtnWrapper.style.flexDirection = "column";
 
   rightBtnWrapper.appendChild(notionBtn);
   rightBtnWrapper.appendChild(commentBtn);
+  rightBtnWrapper.appendChild(figmaBtn);
 
   // ===== 댓글 hover 박스 =====
   const commentBox = document.createElement("div");
 
-  commentBox.style.position = "absolute";
-  commentBox.style.left = "100%";
+  commentBox.style.position = "fixed";
   commentBox.style.width = "220px";
   commentBox.style.height = "260px";
   commentBox.style.background = "white";
@@ -125,13 +337,11 @@ titles.forEach((title) => {
   commentBox.style.zIndex = "10000";
   commentBox.style.boxShadow = "0 4px 10px rgba(0,0,0,0.1)";
   commentBox.style.flexDirection = "column";
-  commentBox.style.transform = "scaleY(-1)";
 
-  // ===== 댓글 hover 박스 =====
+  // ===== notion hover 박스 =====
   const notionPageBox = document.createElement("div");
 
-  notionPageBox.style.position = "absolute";
-  notionPageBox.style.left = "100%";
+  notionPageBox.style.position = "fixed";
   notionPageBox.style.width = "220px";
   notionPageBox.style.height = "260px";
   notionPageBox.style.background = "white";
@@ -141,7 +351,6 @@ titles.forEach((title) => {
   notionPageBox.style.zIndex = "10000";
   notionPageBox.style.boxShadow = "0 4px 10px rgba(0,0,0,0.1)";
   notionPageBox.style.flexDirection = "column";
-  notionPageBox.style.transform = "scaleY(-1)";
 
   const notionTitle = document.createElement("div");
   notionTitle.innerText = "저장할 페이지";
@@ -192,11 +401,8 @@ titles.forEach((title) => {
   commentList.style.padding = "10px";
   commentList.style.fontSize = "12px";
 
-  commentList.innerHTML = `
-    <div>- 이 글 좋다</div>
-    <div>- 참고할만함</div>
-    <div>- 나중에 읽어야지</div>
-  `;
+  let reviewsLoaded = false;
+  commentList.innerHTML = '';
   const bottom = document.createElement("div");
 
   bottom.style.flexShrink = "0";
@@ -225,33 +431,32 @@ titles.forEach((title) => {
   submitBtn.style.borderRadius = "6px";
   submitBtn.style.cursor = "pointer";
 
-  submitBtn.addEventListener("click", () => {
-    const value = input.value.trim();
-    if (!value) return;
-
-    const item = document.createElement("div");
-    item.style.marginBottom = "6px";
-    item.innerText = "- " + value;
-
-    commentList.appendChild(item);
-
-    input.value = "";
-
-    // 자동 스크롤 아래로
-    commentList.scrollTop = commentList.scrollHeight;
-  });
-
   const addComment = () => {
     const value = input.value.trim();
     if (!value) return;
 
-    const item = document.createElement("div");
-    item.style.marginBottom = "6px";
-    item.innerText = "- " + value;
+    bgCall(
+      {
+        type: "CREATE_REVIEW",
+        url: anchor.href,
+        rating: 4,
+        comment: value,
+        tags: [],
+      },
+      (response) => {
+        const res = response as { success: boolean };
+        console.log("리뷰 등록 응답:", res);
+        if (!res?.success) return;
 
-    commentList.appendChild(item);
-    input.value = "";
-    commentList.scrollTop = commentList.scrollHeight;
+        const item = document.createElement("div");
+        item.style.marginBottom = "6px";
+        item.innerText = "- " + value;
+        commentList.appendChild(item);
+        input.value = "";
+        commentList.scrollTop = commentList.scrollHeight;
+        reviewsLoaded = false;
+      }
+    );
   };
 
   submitBtn.addEventListener("click", addComment);
@@ -266,40 +471,83 @@ titles.forEach((title) => {
   commentBtn.style.border = "none";
   notionBtn.style.border = "none";
 
-  commentBtn.addEventListener("mouseenter", () => {
-    commentBox.style.display = "flex";
-  });
+  let commentHideTimer: ReturnType<typeof setTimeout> | null = null;
+  let notionHideTimer: ReturnType<typeof setTimeout> | null = null;
 
-  notionBtn.addEventListener("mouseenter", () => {
-    notionPageBox.style.display = "block";
+  commentBtn.addEventListener("mouseenter", () => {
+    if (commentHideTimer) {
+      clearTimeout(commentHideTimer);
+      commentHideTimer = null;
+    }
+    const rect = commentBtn.getBoundingClientRect();
+    commentBox.style.right = "";
+    commentBox.style.left = rect.right + 4 + "px";
+    commentBox.style.top = rect.top + "px";
+    commentBox.style.display = "flex";
+
+    if (!reviewsLoaded) {
+      reviewsLoaded = true;
+      commentList.innerHTML = '<div style="color:#888;font-size:12px;padding:4px">로딩중...</div>';
+      bgCall({ type: "GET_REVIEWS", url: anchor.href }, (response) => {
+        const res = response as {
+          success: boolean;
+          data: { content?: { comment: string; id: number }[] } | { comment: string; id: number }[];
+        };
+        const items = Array.isArray(res.data)
+          ? res.data
+          : (res.data as { content?: { comment: string; id: number }[] }).content ?? [];
+        if (res?.success && items.length > 0) {
+          commentList.innerHTML = items
+            .map((r) => `<div style="margin-bottom:4px">- ${r.comment}</div>`)
+            .join('');
+        } else {
+          commentList.innerHTML = '<div style="color:#888;font-size:12px;padding:4px">아직 댓글이 없습니다</div>';
+        }
+      });
+    }
   });
 
   commentBtn.addEventListener("mouseleave", () => {
-    setTimeout(() => {
-      if (!commentBox.matches(":hover")) {
-        commentBox.style.display = "none";
-      }
-    }, 200);
-  });
-
-  notionBtn.addEventListener("mouseleave", () => {
-    setTimeout(() => {
-      if (!notionPageBox.matches(":hover")) {
-        notionPageBox.style.display = "none";
-      }
-    }, 200);
+    commentHideTimer = setTimeout(() => {
+      if (!commentBox.matches(":hover")) commentBox.style.display = "none";
+    }, 150);
   });
 
   commentBox.addEventListener("mouseenter", () => {
-    commentBox.style.display = "flex";
+    if (commentHideTimer) {
+      clearTimeout(commentHideTimer);
+      commentHideTimer = null;
+    }
   });
 
   commentBox.addEventListener("mouseleave", () => {
     commentBox.style.display = "none";
   });
 
+  notionBtn.addEventListener("mouseenter", () => {
+    if (notionHideTimer) {
+      clearTimeout(notionHideTimer);
+      notionHideTimer = null;
+    }
+    const rect = notionBtn.getBoundingClientRect();
+    notionPageBox.style.right = "";
+    notionPageBox.style.left = rect.right + 4 + "px";
+    notionPageBox.style.top = rect.top + "px";
+    notionPageBox.style.display = "flex";
+  });
+
+  notionBtn.addEventListener("mouseleave", () => {
+    notionHideTimer = setTimeout(() => {
+      if (!notionPageBox.matches(":hover"))
+        notionPageBox.style.display = "none";
+    }, 150);
+  });
+
   notionPageBox.addEventListener("mouseenter", () => {
-    notionPageBox.style.display = "block";
+    if (notionHideTimer) {
+      clearTimeout(notionHideTimer);
+      notionHideTimer = null;
+    }
   });
 
   notionPageBox.addEventListener("mouseleave", () => {
@@ -311,20 +559,16 @@ titles.forEach((title) => {
   likeCount.style.transform = "rotate(180deg)";
   commentBtn.style.transform = "rotate(180deg)";
   notionBtn.style.transform = "rotate(180deg)";
-  tagEls.forEach((el) => {
-    el.style.transform = "rotate(180deg)";
-    el.style.whiteSpace = "nowrap";
-    el.style.wordBreak = "keep-all";
-    el.style.flexShrink = "0";
-  });
+  figmaBtn.style.transform = "rotate(180deg)";
+  tagWrapper.style.transform = "rotate(180deg)";
 
   // ===== 조립 =====
   parent.replaceChild(wrapper, anchor);
 
   wrapper.appendChild(anchor);
   wrapper.appendChild(btnContainer);
-  wrapper.appendChild(commentBox);
-  wrapper.appendChild(notionPageBox);
+  document.body.appendChild(commentBox);
+  document.body.appendChild(notionPageBox);
 
   bottom.appendChild(input);
   bottom.appendChild(submitBtn);
@@ -333,6 +577,191 @@ titles.forEach((title) => {
   commentBox.appendChild(bottom);
 
   btnContainer.appendChild(rightBtnWrapper);
-  tagEls.forEach((t) => btnContainer.appendChild(t));
+  btnContainer.appendChild(tagWrapper);
   btnContainer.appendChild(likeWrapper);
+
+  linkRefMap.set(anchor.href, {
+    likeCountEl: likeCount,
+    tagWrapper,
+    commentList,
+    setInitialCount: (count: number) => applyLikeState(liked, count),
+  });
+});
+
+type SiteConfig = { tags: string[]; comments: string[] };
+
+const getCustomConfig = (
+  url: string,
+  siteTags: Record<string, SiteConfig>
+): SiteConfig | null => {
+  try {
+    const hostname = new URL(url).hostname.replace(/^www\./, "");
+    const matched = Object.keys(siteTags).find(
+      (domain) => hostname.includes(domain) || domain.includes(hostname)
+    );
+    return matched ? siteTags[matched] : null;
+  } catch {
+    return null;
+  }
+};
+
+const applyTags = (
+  ref: LinkRef,
+  url: string,
+  siteTags: Record<string, SiteConfig>,
+  apiTags?: string[]
+) => {
+  const custom = getCustomConfig(url, siteTags);
+  if (custom) {
+    custom.tags.forEach((tag) => ref.tagWrapper.appendChild(makeTagEl(tag)));
+    ref.commentList.innerHTML = custom.comments
+      .map((c) => `<div style="margin-bottom:4px">- ${c}</div>`)
+      .join("");
+  } else if (apiTags && apiTags.length > 0) {
+    apiTags.forEach((tag) => ref.tagWrapper.appendChild(makeTagEl(tag)));
+  } else {
+    const idx = getMockIndex(url);
+    MOCK_TAG_SETS[idx % MOCK_TAG_SETS.length].forEach((tag) =>
+      ref.tagWrapper.appendChild(makeTagEl(tag))
+    );
+  }
+};
+
+chrome.storage.local.get("site_tags", (data) => {
+  const siteTags = (data.site_tags || {}) as Record<string, SiteConfig>;
+
+  bgCall({ type: "GET_LINK_RATINGS", urls }, (response) => {
+    const res = response as {
+      success: boolean;
+      data: { url: string; linkId?: number; likeCount: number; topTags: ({ name: string; count: number } | string)[] }[];
+    };
+
+    if (!res?.success || !Array.isArray(res.data)) {
+      linkRefMap.forEach((ref, url) => {
+        const idx = getMockIndex(url);
+        ref.setInitialCount(MOCK_LIKE_COUNTS[idx % MOCK_LIKE_COUNTS.length]);
+        applyTags(ref, url, siteTags);
+      });
+      return;
+    }
+
+    res.data.forEach((item) => {
+      if (item.linkId !== undefined) {
+        urlToLinkId.set(item.url, item.linkId);
+      }
+      const ref = linkRefMap.get(item.url);
+      if (!ref) return;
+      ref.setInitialCount(item.likeCount ?? 0);
+      const tagNames = item.topTags.map((t) => (typeof t === "string" ? t : t.name));
+      applyTags(ref, item.url, siteTags, tagNames);
+    });
+  });
+});
+
+// ===== 태그 설정 패널 (Alt+T) =====
+const configPanel = document.createElement("div");
+configPanel.style.cssText = `
+  position: fixed; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 999999; background: white;
+  border: 1px solid #ddd; border-radius: 14px;
+  padding: 22px; width: 360px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  display: none; font-family: -apple-system, sans-serif;
+`;
+
+const panelTitle = document.createElement("div");
+panelTitle.innerText = "사이트 태그 설정";
+panelTitle.style.cssText =
+  "font-weight: 700; font-size: 15px; margin-bottom: 16px;";
+
+const makeField = (label: string, placeholder: string) => {
+  const wrap = document.createElement("div");
+  wrap.style.marginBottom = "12px";
+  const lbl = document.createElement("div");
+  lbl.innerText = label;
+  lbl.style.cssText = "font-size: 12px; color: #888; margin-bottom: 4px;";
+  const inp = document.createElement("input");
+  inp.placeholder = placeholder;
+  inp.style.cssText = `
+    width: 100%; padding: 8px 10px; border: 1px solid #ddd;
+    border-radius: 8px; font-size: 13px; box-sizing: border-box;
+  `;
+  wrap.appendChild(lbl);
+  wrap.appendChild(inp);
+  return { wrap, inp };
+};
+
+const { wrap: domainWrap, inp: domainInp } = makeField(
+  "사이트 도메인",
+  "예: youtube.com"
+);
+const { wrap: tagsWrap, inp: tagsInp } = makeField(
+  "태그 (쉼표로 구분)",
+  "예: 유튜브, 영상, 콘텐츠"
+);
+const { wrap: commentsWrap, inp: commentsInp } = makeField(
+  "댓글 (쉼표로 구분)",
+  "예: 영상으로 쉽게 설명됩니다, 추천합니다"
+);
+
+const btnRow = document.createElement("div");
+btnRow.style.cssText =
+  "display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px;";
+
+const cancelBtn = document.createElement("button");
+cancelBtn.innerText = "닫기";
+cancelBtn.style.cssText = `
+  padding: 8px 16px; border: 1px solid #ddd; border-radius: 8px;
+  background: white; cursor: pointer; font-size: 13px;
+`;
+
+const saveBtn = document.createElement("button");
+saveBtn.innerText = "저장";
+saveBtn.style.cssText = `
+  padding: 8px 16px; border: none; border-radius: 8px;
+  background: #111; color: white; cursor: pointer; font-size: 13px;
+`;
+
+cancelBtn.addEventListener("click", () => {
+  configPanel.style.display = "none";
+});
+
+saveBtn.addEventListener("click", () => {
+  const domain = domainInp.value.trim();
+  const tags = tagsInp.value
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
+  const comments = commentsInp.value
+    .split(",")
+    .map((c) => c.trim())
+    .filter(Boolean);
+  if (!domain || tags.length === 0) return;
+
+  chrome.storage.local.get("site_tags", (data) => {
+    const existing = (data.site_tags || {}) as Record<string, SiteConfig>;
+    existing[domain] = { tags, comments };
+    chrome.storage.local.set({ site_tags: existing }, () => {
+      configPanel.style.display = "none";
+      window.location.reload();
+    });
+  });
+});
+
+btnRow.appendChild(cancelBtn);
+btnRow.appendChild(saveBtn);
+
+configPanel.appendChild(panelTitle);
+configPanel.appendChild(domainWrap);
+configPanel.appendChild(tagsWrap);
+configPanel.appendChild(commentsWrap);
+configPanel.appendChild(btnRow);
+document.body.appendChild(configPanel);
+
+document.addEventListener("keydown", (e) => {
+  if (e.altKey && e.key === "t") {
+    configPanel.style.display =
+      configPanel.style.display === "none" ? "block" : "none";
+  }
 });
