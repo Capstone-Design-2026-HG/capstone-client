@@ -54,6 +54,68 @@ const bgCall = (
   bgPort.postMessage({ id, ...message });
 };
 
+// ===== Notion 연결 상태 + 페이지 목록 (모든 링크의 hover 박스가 공유, 최초 1회만 조회) =====
+type NotionPage = { id: string; title: string; url: string; icon?: string | null };
+type NotionState =
+  | { connected: false }
+  | { connected: true; workspaceName?: string | null; pages: NotionPage[] };
+type ApiResult<T> = { success: boolean; message?: string; error?: string; code?: string; data?: T };
+
+// 서버가 "연결 안 됨 / 토큰 만료"로 응답하는 경우 → 연결 버튼 표시
+const NOTION_DISCONNECTED_CODES = ["NOTION_NOT_CONNECTED", "NOTION_UNAUTHORIZED"];
+
+const bgCallAsync = <T>(message: Record<string, unknown>) =>
+  new Promise<ApiResult<T>>((resolve) => bgCall(message, (res) => resolve(res as ApiResult<T>)));
+
+const errorMessage = (res: ApiResult<unknown>, fallback: string) =>
+  res?.message ?? res?.error ?? fallback;
+
+let notionStatePromise: Promise<NotionState> | null = null;
+let notionStateVersion = 0; // 연결/해제 시 증가 → 각 hover 박스가 다시 그리도록
+
+const fetchNotionState = async (): Promise<NotionState> => {
+  const conn = await bgCallAsync<{ connected: boolean; workspaceName?: string }>({
+    type: "GET_NOTION_CONNECTION",
+  });
+  if (!conn?.success || !conn.data) {
+    throw new Error(errorMessage(conn, "Notion 연결 상태를 확인하지 못했습니다."));
+  }
+  if (!conn.data.connected) return { connected: false };
+
+  const pages = await bgCallAsync<NotionPage[]>({ type: "GET_NOTION_PAGES" });
+  if (pages?.success && Array.isArray(pages.data)) {
+    return { connected: true, workspaceName: conn.data.workspaceName, pages: pages.data };
+  }
+  if (pages?.code && NOTION_DISCONNECTED_CODES.includes(pages.code)) return { connected: false };
+  throw new Error(errorMessage(pages, "Notion 페이지를 불러오지 못했습니다."));
+};
+
+const loadNotionState = () => {
+  if (!notionStatePromise) {
+    notionStatePromise = fetchNotionState().catch((err) => {
+      notionStatePromise = null; // 실패 시 다음 hover 때 재시도
+      throw err;
+    });
+  }
+  return notionStatePromise;
+};
+
+const resetNotionState = () => {
+  notionStatePromise = null;
+  notionStateVersion++;
+};
+
+// Notion 인가 팝업을 띄우고, 성공하면 상태를 새로 조회하도록 초기화
+const connectNotion = async () => {
+  const res = await bgCallAsync<unknown>({ type: "CONNECT_NOTION" });
+  if (!res?.success) {
+    if (res?.code === "NOTION_OAUTH_CANCELLED") return false;
+    throw new Error(errorMessage(res, "Notion 연결에 실패했습니다."));
+  }
+  resetNotionState();
+  return true;
+};
+
 type LinkRef = {
   likeCountEl: HTMLSpanElement;
   tagWrapper: HTMLDivElement;
@@ -203,46 +265,10 @@ titles.forEach((title) => {
   notionBtn.style.cursor = "pointer";
   notionBtn.style.backgroundColor = "white";
 
+  // 클릭 시 페이지 이동 방지 (저장은 hover 박스에서 페이지 선택으로 수행)
   notionBtn.addEventListener("click", (e) => {
     e.preventDefault();
     e.stopPropagation();
-
-    const title = anchor.querySelector("h3")?.textContent?.trim() ?? "";
-    const url = anchor.href;
-
-    console.log("[Notion] 저장 요청:", {
-      title,
-      url,
-    });
-
-    bgCall(
-      {
-        type: "SAVE_TO_NOTION",
-        title,
-        url,
-      },
-      (response) => {
-        console.log("[Notion] 저장 응답:", response);
-
-        const res = response as {
-          id?: number;
-          notionPageId?: string;
-          notionPageUrl?: string;
-          savedAt?: string;
-          success?: boolean;
-          error?: string;
-        };
-
-        if (res?.error) {
-          console.error("[Notion] 저장 실패:", res.error);
-          alert("Notion 저장에 실패했습니다.");
-          return;
-        }
-
-        console.log("[Notion] 저장 성공");
-        alert("Notion에 저장되었습니다.");
-      }
-    );
   });
 
   // ===== Figma =====
@@ -366,34 +392,204 @@ titles.forEach((title) => {
   notionList.style.padding = "8px";
   notionList.style.gap = "6px";
   notionList.style.background = "white";
+  notionList.style.flex = "1";
+  notionList.style.overflowY = "auto";
 
-  const notionPages = [
-    { name: "프로젝트 자료 정리", url: "https://www.notion.so" },
-    { name: "나중에 읽을 링크", url: "https://www.notion.so" },
-    { name: "아이디어 수집함", url: "https://www.notion.so" },
-  ];
+  const setNotionMessage = (text: string) => {
+    notionList.innerHTML = "";
+    const msg = document.createElement("div");
+    msg.innerText = text;
+    msg.style.color = "#888";
+    msg.style.fontSize = "12px";
+    msg.style.padding = "4px";
+    notionList.appendChild(msg);
+  };
 
-  notionPages.forEach((page) => {
-    const pageLink = document.createElement("a");
-    pageLink.href = page.url;
-    pageLink.target = "_blank";
-    pageLink.rel = "noopener noreferrer";
-    pageLink.innerText = page.name;
+  // 하단: 연결된 워크스페이스 + 페이지 추가(재연결) 버튼
+  const notionFooter = document.createElement("div");
+  notionFooter.style.display = "none";
+  notionFooter.style.flexShrink = "0";
+  notionFooter.style.justifyContent = "space-between";
+  notionFooter.style.alignItems = "center";
+  notionFooter.style.gap = "6px";
+  notionFooter.style.padding = "8px 12px";
+  notionFooter.style.borderTop = "1px solid #eee";
+  notionFooter.style.fontSize = "11px";
+  notionFooter.style.color = "#888";
 
-    pageLink.style.display = "block";
-    pageLink.style.padding = "10px";
-    pageLink.style.border = "1px solid #eee";
-    pageLink.style.borderRadius = "8px";
-    pageLink.style.fontSize = "12px";
-    pageLink.style.color = "#111";
-    pageLink.style.textDecoration = "none";
-    pageLink.style.background = "#fff";
+  const workspaceLabel = document.createElement("span");
+  workspaceLabel.style.overflow = "hidden";
+  workspaceLabel.style.textOverflow = "ellipsis";
+  workspaceLabel.style.whiteSpace = "nowrap";
 
-    notionList.appendChild(pageLink);
+  const makeTextButton = (text: string) => {
+    const btn = document.createElement("button");
+    btn.innerText = text;
+    btn.style.border = "none";
+    btn.style.background = "transparent";
+    btn.style.padding = "0";
+    btn.style.fontSize = "11px";
+    btn.style.color = "#2383e2";
+    btn.style.cursor = "pointer";
+    btn.style.flexShrink = "0";
+    return btn;
+  };
+  // Notion 인가 화면에서 공유할 페이지를 다시 고르면 목록이 갱신됨
+  const reconnectBtn = makeTextButton("페이지 추가");
+
+  notionFooter.appendChild(workspaceLabel);
+  notionFooter.appendChild(reconnectBtn);
+
+  let renderedVersion = -1;
+  const ensureNotionPages = (force = false) => {
+    if (!force && renderedVersion === notionStateVersion) return;
+    renderedVersion = notionStateVersion;
+    notionFooter.style.display = "none";
+    setNotionMessage("로딩중...");
+    loadNotionState()
+      .then(renderNotionState)
+      .catch((err: Error) => {
+        renderedVersion = -1; // 다음 hover 때 재시도
+        setNotionMessage(err.message);
+      });
+  };
+
+  const startConnect = (btn: HTMLButtonElement, idleText: string) => {
+    btn.disabled = true;
+    btn.innerText = "연결 중...";
+    connectNotion()
+      .then((connected) => {
+        btn.disabled = false;
+        btn.innerText = idleText;
+        if (connected) ensureNotionPages(true);
+      })
+      .catch((err: Error) => {
+        btn.disabled = false;
+        btn.innerText = idleText;
+        alert(err.message);
+      });
+  };
+
+  reconnectBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!reconnectBtn.disabled) startConnect(reconnectBtn, "페이지 추가");
   });
+
+  const renderConnectPrompt = () => {
+    notionFooter.style.display = "none";
+    setNotionMessage("Notion을 연결하면 링크를 원하는 페이지에 저장할 수 있어요.");
+
+    const connectBtn = document.createElement("button");
+    connectBtn.innerText = "Notion 연결하기";
+    connectBtn.style.flexShrink = "0";
+    connectBtn.style.padding = "10px";
+    connectBtn.style.border = "none";
+    connectBtn.style.borderRadius = "8px";
+    connectBtn.style.fontSize = "12px";
+    connectBtn.style.background = "#000";
+    connectBtn.style.color = "#fff";
+    connectBtn.style.cursor = "pointer";
+    connectBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!connectBtn.disabled) startConnect(connectBtn, "Notion 연결하기");
+    });
+    notionList.appendChild(connectBtn);
+  };
+
+  const saveToNotionPage = (page: NotionPage, pageItem: HTMLButtonElement) => {
+    const label = `${page.icon ? page.icon + " " : ""}${page.title}`;
+    const showResult = (text: string, color: string) => {
+      pageItem.innerText = text;
+      pageItem.style.color = color;
+      setTimeout(() => {
+        pageItem.innerText = label;
+        pageItem.style.color = "#111";
+        pageItem.disabled = false;
+      }, 2000);
+    };
+
+    const title = anchor.querySelector("h3")?.textContent?.trim() ?? "";
+    const url = anchor.href;
+    console.log("[Notion] 저장 요청:", { pageId: page.id, title, url });
+
+    pageItem.disabled = true;
+    pageItem.innerText = "저장 중...";
+
+    bgCallAsync<{ notionPageUrl: string; alreadySaved: boolean; databaseCreated: boolean }>({
+      type: "SAVE_TO_NOTION",
+      pageId: page.id,
+      title,
+      url,
+    }).then((res) => {
+      console.log("[Notion] 저장 응답:", res);
+
+      if (res?.code && NOTION_DISCONNECTED_CODES.includes(res.code)) {
+        // 토큰 만료 / Notion에서 연결 해제됨 → 연결 버튼으로 전환
+        resetNotionState();
+        ensureNotionPages(true);
+        return;
+      }
+      if (!res?.success || !res.data) {
+        console.error("[Notion] 저장 실패:", errorMessage(res, "알 수 없는 오류"));
+        showResult("✗ 저장 실패", "#e53e3e");
+        return;
+      }
+      showResult(res.data.alreadySaved ? "✓ 이미 저장됨" : "✓ 저장됨", "#38a169");
+    });
+  };
+
+  const renderNotionState = (state: NotionState) => {
+    if (!state.connected) {
+      renderConnectPrompt();
+      return;
+    }
+
+    workspaceLabel.innerText = state.workspaceName ?? "Notion";
+    notionFooter.style.display = "flex";
+
+    if (state.pages.length === 0) {
+      setNotionMessage("선택된 페이지가 없습니다.\n아래 '페이지 추가'에서 저장할 페이지를 선택해주세요.");
+      return;
+    }
+    notionList.innerHTML = "";
+    state.pages.forEach((page) => {
+      const pageItem = document.createElement("button");
+      pageItem.innerText = `${page.icon ? page.icon + " " : ""}${page.title}`;
+      pageItem.title = page.title;
+
+      pageItem.style.display = "block";
+      pageItem.style.width = "100%";
+      pageItem.style.flexShrink = "0";
+      pageItem.style.padding = "10px";
+      pageItem.style.border = "1px solid #eee";
+      pageItem.style.borderRadius = "8px";
+      pageItem.style.fontSize = "12px";
+      pageItem.style.color = "#111";
+      pageItem.style.textAlign = "left";
+      pageItem.style.whiteSpace = "nowrap";
+      pageItem.style.overflow = "hidden";
+      pageItem.style.textOverflow = "ellipsis";
+      pageItem.style.background = "#fff";
+      pageItem.style.cursor = "pointer";
+
+      pageItem.addEventListener("mouseenter", () => (pageItem.style.background = "#f5f5f5"));
+      pageItem.addEventListener("mouseleave", () => (pageItem.style.background = "#fff"));
+      pageItem.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (pageItem.disabled) return;
+        saveToNotionPage(page, pageItem);
+      });
+
+      notionList.appendChild(pageItem);
+    });
+  };
 
   notionPageBox.appendChild(notionTitle);
   notionPageBox.appendChild(notionList);
+  notionPageBox.appendChild(notionFooter);
 
   const commentList = document.createElement("div");
   commentList.style.flex = "1";
@@ -534,6 +730,7 @@ titles.forEach((title) => {
     notionPageBox.style.left = rect.right + 4 + "px";
     notionPageBox.style.top = rect.top + "px";
     notionPageBox.style.display = "flex";
+    ensureNotionPages();
   });
 
   notionBtn.addEventListener("mouseleave", () => {

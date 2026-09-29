@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Search Rating Extension",
   "version": "1.0",
-  "permissions": ["storage", "activeTab", "scripting"],
+  "permissions": ["storage", "activeTab", "scripting", "identity"],
   "host_permissions": [
     "https://www.google.com/*",
     "http://35.172.181.64:8080/*",

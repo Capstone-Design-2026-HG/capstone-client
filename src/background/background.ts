@@ -46,6 +46,56 @@ const fetchWithTimeout = async (url: string, options: RequestInit) => {
   }
 };
 
+// 익스텐션 사용자 식별용 UUID (최초 1회 생성 후 storage에 보관)
+const getUserId = async () => {
+  const stored = await chrome.storage.local.get("userId");
+  if (typeof stored.userId === "string") return stored.userId;
+  const userId = crypto.randomUUID();
+  await chrome.storage.local.set({ userId });
+  return userId;
+};
+
+// Notion OAuth: 인가 페이지 팝업 → code 수신 → 서버에서 토큰 교환
+const connectNotion = async () => {
+  const userId = await getUserId();
+  const redirectUri = chrome.identity.getRedirectURL(); // https://<ext-id>.chromiumapp.org/
+  const state = crypto.randomUUID();
+
+  const urlRes = await fetchWithTimeout(
+    `${BASE_URL}/api/notion/oauth/authorize-url?redirectUri=${encodeURIComponent(redirectUri)}&state=${state}`,
+    { method: "GET" }
+  );
+  const urlBody = await urlRes.json();
+  if (!urlBody?.success) return urlBody;
+
+  let responseUrl: string | undefined;
+  try {
+    responseUrl = await chrome.identity.launchWebAuthFlow({
+      url: urlBody.data.authorizeUrl,
+      interactive: true,
+    });
+  } catch (e) {
+    // 사용자가 팝업을 닫은 경우 등
+    return { success: false, code: "NOTION_OAUTH_CANCELLED", message: "Notion 연결이 취소되었습니다.", error: String(e) };
+  }
+
+  const params = new URL(responseUrl ?? "").searchParams;
+  if (params.get("state") !== state) {
+    return { success: false, message: "Notion 연결 검증에 실패했습니다. 다시 시도해주세요." };
+  }
+  const code = params.get("code");
+  if (!code) {
+    return { success: false, code: "NOTION_OAUTH_CANCELLED", message: "Notion 연결이 취소되었습니다." };
+  }
+
+  const tokenRes = await fetchWithTimeout(`${BASE_URL}/api/notion/oauth/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ userId, code, redirectUri }),
+  });
+  return tokenRes.json();
+};
+
 chrome.runtime.onConnect.addListener((port) => {
   console.log("[BG] 포트 연결됨:", port.name);
 
@@ -107,9 +157,35 @@ chrome.runtime.onConnect.addListener((port) => {
         console.log("[BG] 좋아요 완료:", data);
       }
 
-      // Notion 저장 테스트
+      else if (type === "GET_NOTION_CONNECTION") {
+        const userId = await getUserId();
+        const res = await fetchWithTimeout(
+          `${BASE_URL}/api/notion/connection?userId=${userId}`,
+          { method: "GET" }
+        );
+        data = await res.json();
+        console.log("[BG] Notion 연결 상태:", data);
+      }
+
+      else if (type === "CONNECT_NOTION") {
+        console.log("[BG] Notion 연결 시작");
+        data = await connectNotion();
+        console.log("[BG] Notion 연결 결과:", data);
+      }
+
+      else if (type === "GET_NOTION_PAGES") {
+        console.log("[BG] Notion 페이지 목록 조회");
+        const userId = await getUserId();
+        const res = await fetchWithTimeout(
+          `${BASE_URL}/api/notion/pages?userId=${userId}`,
+          { method: "GET" }
+        );
+        data = await res.json();
+        console.log("[BG] Notion 페이지 목록 조회 완료:", data);
+      }
+
       else if (type === "SAVE_TO_NOTION") {
-        console.log("[BG] Notion 저장 시작:", message.url);
+        console.log("[BG] Notion 저장 시작:", message.pageId, message.url);
 
         const res = await fetchWithTimeout(`${BASE_URL}/api/notion/save`, {
           method: "POST",
@@ -117,7 +193,8 @@ chrome.runtime.onConnect.addListener((port) => {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            userId: "test-user-1",
+            userId: await getUserId(),
+            pageId: message.pageId,
             title: message.title,
             url: message.url,
           }),
