@@ -2,12 +2,16 @@
   "manifest_version": 3,
   "name": "Search Rating Extension",
   "version": "1.0",
-  "permissions": ["storage", "activeTab", "scripting", "identity"],
+  "permissions": ["storage", "activeTab", "scripting", "identity", "debugger", "tabs"],
   "host_permissions": [
     "https://www.google.com/*",
     "http://35.172.181.64:8080/*",
     "http://localhost:8080/*"
   ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Search Rating"
+  },
   "background": {
     "service_worker": "background.js"
   },

@@ -120,7 +120,7 @@ type LinkRef = {
   likeCountEl: HTMLSpanElement;
   tagWrapper: HTMLDivElement;
   commentList: HTMLDivElement;
-  setInitialCount: (count: number) => void;
+  setInitialState: (isLiked: boolean, count: number) => void;
 };
 const linkRefMap = new Map<string, LinkRef>();
 const urlToLinkId = new Map<string, number>();
@@ -287,59 +287,215 @@ titles.forEach((title) => {
   figmaBtn.style.backgroundColor = "white";
   figmaBtn.style.border = "none";
 
-  let isFigmaCapturing = false;
+  // ===== Figma hover 박스 =====
+  const figmaPageBox = document.createElement("div");
+  figmaPageBox.style.position = "fixed";
+  figmaPageBox.style.width = "240px";
+  figmaPageBox.style.background = "white";
+  figmaPageBox.style.border = "1px solid #ddd";
+  figmaPageBox.style.borderRadius = "10px";
+  figmaPageBox.style.display = "none";
+  figmaPageBox.style.zIndex = "10000";
+  figmaPageBox.style.boxShadow = "0 4px 10px rgba(0,0,0,0.1)";
+  figmaPageBox.style.flexDirection = "column";
+  figmaPageBox.style.overflow = "hidden";
+
+  const figmaBoxTitle = document.createElement("div");
+  figmaBoxTitle.innerText = "저장할 Figma 페이지";
+  figmaBoxTitle.style.cssText =
+    "font-size:13px;font-weight:600;padding:12px 12px 8px;border-bottom:1px solid #eee;flex-shrink:0;";
+
+  const figmaPageList = document.createElement("div");
+  figmaPageList.style.cssText =
+    "display:flex;flex-direction:column;padding:8px;gap:4px;max-height:220px;overflow-y:auto;";
+
+  figmaPageBox.appendChild(figmaBoxTitle);
+  figmaPageBox.appendChild(figmaPageList);
+  document.body.appendChild(figmaPageBox);
+
+  type FigmaFilePage = { fileKey: string; fileName: string; pages: { id: string; name: string }[] };
+  let figmaStateLoading = false;
+  let figmaStateVersion = 0;
+  let renderedFigmaVersion = -1;
+
+  const resetFigmaState = () => {
+    figmaStateVersion++;
+  };
+
+  const setFigmaMessage = (text: string) => {
+    figmaPageList.innerHTML = "";
+    const msg = document.createElement("div");
+    msg.innerText = text;
+    msg.style.cssText = "color:#888;font-size:12px;padding:6px 4px;line-height:1.5;";
+    figmaPageList.appendChild(msg);
+  };
+
+  const startConnectFigma = (btn: HTMLButtonElement) => {
+    btn.disabled = true;
+    btn.innerText = "연결 중...";
+    bgCallAsync<{ connected: boolean; userHandle?: string }>({ type: "CONNECT_FIGMA" })
+      .then((res) => {
+        btn.disabled = false;
+        btn.innerText = "Figma 연결하기";
+        if (res?.success) {
+          resetFigmaState();
+          loadFigmaState(true);
+        }
+      })
+      .catch(() => {
+        btn.disabled = false;
+        btn.innerText = "Figma 연결하기";
+      });
+  };
+
+  const renderFigmaConnect = () => {
+    figmaPageList.innerHTML = "";
+    setFigmaMessage("Figma를 연결하면 검색 결과를\n원하는 캔버스에 저장할 수 있어요.");
+    const connectBtn = document.createElement("button");
+    connectBtn.innerText = "Figma 연결하기";
+    connectBtn.style.cssText =
+      "width:100%;padding:8px;border:none;border-radius:7px;background:#000;color:#fff;font-size:12px;cursor:pointer;margin-top:4px;";
+    connectBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!connectBtn.disabled) startConnectFigma(connectBtn);
+    });
+    figmaPageList.appendChild(connectBtn);
+  };
+
+  const renderFigmaNoFiles = () => {
+    figmaPageList.innerHTML = "";
+    setFigmaMessage("팝업에서 Figma 파일 URL을\n추가해주세요.");
+  };
+
+  const loadFigmaState = (force = false) => {
+    if (!force && renderedFigmaVersion === figmaStateVersion) return;
+    if (figmaStateLoading) return;
+    renderedFigmaVersion = figmaStateVersion;
+    figmaStateLoading = true;
+    setFigmaMessage("로딩 중...");
+
+    bgCallAsync<{ connected: boolean }>({ type: "GET_FIGMA_CONNECTION" }).then((connRes) => {
+      if (!connRes?.success || !connRes.data?.connected) {
+        figmaStateLoading = false;
+        renderFigmaConnect();
+        return;
+      }
+
+      chrome.storage.local.get(["figmaFiles"], (stored) => {
+        const storedFiles = (stored.figmaFiles as { fileKey: string; fileName: string }[]) ?? [];
+        if (storedFiles.length === 0) {
+          figmaStateLoading = false;
+          renderFigmaNoFiles();
+          return;
+        }
+
+        bgCallAsync<FigmaFilePage[]>({
+          type: "GET_FIGMA_PAGES",
+          files: storedFiles,
+        }).then((pagesRes) => {
+          figmaStateLoading = false;
+          if (!pagesRes?.success) {
+            if ((pagesRes as Record<string, unknown>)?.code === "FIGMA_NOT_CONNECTED") {
+              renderFigmaConnect();
+            } else {
+              setFigmaMessage("페이지 목록을 불러오지 못했습니다.");
+            }
+            return;
+          }
+          const files = (pagesRes.data as FigmaFilePage[]) ?? [];
+          renderFigmaPages(files);
+        });
+      });
+    });
+  };
+
+  const renderFigmaPages = (files: FigmaFilePage[]) => {
+    figmaPageList.innerHTML = "";
+    if (files.length === 0) {
+      renderFigmaNoFiles();
+      return;
+    }
+    files.forEach((file) => {
+      const fileLabel = document.createElement("div");
+      fileLabel.innerText = `📄 ${file.fileName}`;
+      fileLabel.style.cssText = "font-size:11px;font-weight:600;color:#555;padding:4px 4px 2px;";
+      figmaPageList.appendChild(fileLabel);
+
+      file.pages.forEach((page) => {
+        const pageBtn = document.createElement("button");
+        pageBtn.innerText = page.name;
+        pageBtn.style.cssText =
+          "display:block;width:100%;text-align:left;padding:7px 10px;border:1px solid #eee;border-radius:7px;font-size:12px;color:#111;background:#fff;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px;";
+        pageBtn.addEventListener("mouseenter", () => (pageBtn.style.background = "#f5f5f5"));
+        pageBtn.addEventListener("mouseleave", () => (pageBtn.style.background = "#fff"));
+
+        pageBtn.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (pageBtn.disabled) return;
+
+          const title = anchor.querySelector("h3")?.textContent?.trim() ?? "";
+          const url = anchor.href;
+
+          pageBtn.disabled = true;
+          pageBtn.innerText = "⏳ 캡처 중...";
+
+          bgCallAsync<{ imageUrl?: string; error?: string }>({
+            type: "SAVE_TO_FIGMA",
+            title,
+            url,
+            fileKey: file.fileKey,
+            pageNodeId: page.id,
+          }).then((res) => {
+            if ((res as Record<string, unknown>)?.error || !res) {
+              pageBtn.innerText = "✗ 실패";
+              pageBtn.style.color = "#e53e3e";
+            } else {
+              pageBtn.innerText = "✓ 저장됨";
+              pageBtn.style.color = "#38a169";
+            }
+            setTimeout(() => {
+              pageBtn.innerText = page.name;
+              pageBtn.style.color = "#111";
+              pageBtn.disabled = false;
+            }, 2000);
+          });
+        });
+
+        figmaPageList.appendChild(pageBtn);
+      });
+    });
+  };
+
+  let figmaHideTimer: ReturnType<typeof setTimeout> | null = null;
+
+  figmaBtn.addEventListener("mouseenter", () => {
+    if (figmaHideTimer) { clearTimeout(figmaHideTimer); figmaHideTimer = null; }
+    const rect = figmaBtn.getBoundingClientRect();
+    figmaPageBox.style.left = rect.right + 4 + "px";
+    figmaPageBox.style.top = rect.top + "px";
+    figmaPageBox.style.display = "flex";
+    loadFigmaState();
+  });
+
+  figmaBtn.addEventListener("mouseleave", () => {
+    figmaHideTimer = setTimeout(() => {
+      if (!figmaPageBox.matches(":hover")) figmaPageBox.style.display = "none";
+    }, 150);
+  });
+
+  figmaPageBox.addEventListener("mouseenter", () => {
+    if (figmaHideTimer) { clearTimeout(figmaHideTimer); figmaHideTimer = null; }
+  });
+
+  figmaPageBox.addEventListener("mouseleave", () => {
+    figmaPageBox.style.display = "none";
+  });
 
   figmaBtn.addEventListener("click", (e) => {
     e.preventDefault();
     e.stopPropagation();
-
-    if (isFigmaCapturing) return;
-
-    const title = anchor.querySelector("h3")?.textContent?.trim() ?? "";
-    const url = anchor.href;
-
-    console.log("[Figma] 캡처 요청:", { title, url });
-
-    isFigmaCapturing = true;
-    figmaBtn.disabled = true;
-    figmaBtn.innerHTML = "⏳";
-    figmaBtn.style.fontSize = "14px";
-
-    bgCall(
-      {
-        type: "SAVE_TO_FIGMA",
-        title,
-        url,
-      },
-      (response) => {
-        const res = response as {
-          error?: string;
-          title?: string;
-          url?: string;
-          imageUrl?: string;
-          status?: string;
-        };
-
-        if (res?.error) {
-          console.error("[Figma] 캡처 실패:", res.error);
-          figmaBtn.innerHTML = "✗";
-          figmaBtn.style.color = "#e53e3e";
-        } else {
-          console.log("[Figma] 캡처 성공:", res);
-          console.log("[Figma] imageUrl:", res.imageUrl);
-          figmaBtn.innerHTML = "✓";
-          figmaBtn.style.color = "#38a169";
-        }
-
-        setTimeout(() => {
-          figmaBtn.innerHTML = figmaIconHtml;
-          figmaBtn.style.color = "";
-          figmaBtn.style.fontSize = "";
-          figmaBtn.disabled = false;
-          isFigmaCapturing = false;
-        }, 2000);
-      }
-    );
   });
 
   const rightBtnWrapper = document.createElement("div");
@@ -781,7 +937,7 @@ titles.forEach((title) => {
     likeCountEl: likeCount,
     tagWrapper,
     commentList,
-    setInitialCount: (count: number) => applyLikeState(liked, count),
+    setInitialState: (isLiked: boolean, count: number) => applyLikeState(isLiked, count),
   });
 });
 
@@ -830,13 +986,13 @@ chrome.storage.local.get("site_tags", (data) => {
   bgCall({ type: "GET_LINK_RATINGS", urls }, (response) => {
     const res = response as {
       success: boolean;
-      data: { url: string; linkId?: number; likeCount: number; topTags: ({ name: string; count: number } | string)[] }[];
+      data: { url: string; linkId?: number; likeCount: number; liked?: boolean; topTags: ({ name: string; count: number } | string)[] }[];
     };
 
     if (!res?.success || !Array.isArray(res.data)) {
       linkRefMap.forEach((ref, url) => {
         const idx = getMockIndex(url);
-        ref.setInitialCount(MOCK_LIKE_COUNTS[idx % MOCK_LIKE_COUNTS.length]);
+        ref.setInitialState(false, MOCK_LIKE_COUNTS[idx % MOCK_LIKE_COUNTS.length]);
         applyTags(ref, url, siteTags);
       });
       return;
@@ -848,7 +1004,7 @@ chrome.storage.local.get("site_tags", (data) => {
       }
       const ref = linkRefMap.get(item.url);
       if (!ref) return;
-      ref.setInitialCount(item.likeCount ?? 0);
+      ref.setInitialState(item.liked ?? false, item.likeCount ?? 0);
       const tagNames = item.topTags.map((t) => (typeof t === "string" ? t : t.name));
       applyTags(ref, item.url, siteTags, tagNames);
     });
