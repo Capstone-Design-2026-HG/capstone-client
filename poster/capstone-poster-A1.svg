@@ -1,0 +1,109 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="594mm" height="841mm" viewBox="0 0 1000 1416">
+<rect x="0" y="0" width="1000" height="1416" rx="0" fill="#f4f7fb" stroke="none"/>
+<rect x="0" y="0" width="1000" height="205" rx="0" fill="#10294d" stroke="none"/>
+<text x="46" y="49" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="14" fill="#9dc5ff" font-weight="700">CAPSTONE DESIGN  /  SEARCH RATING</text>
+<text x="46" y="108" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="38" fill="#ffffff" font-weight="700">검색에서 검토와 공유까지</text>
+<text x="47" y="148" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="19" fill="#d9e8ff" font-weight="400">사용자 피드백 기반 검색 결과 탐색·협업 서비스</text>
+<text x="47" y="180" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="13" fill="#a9bdd8" font-weight="400">Chrome Extension  ·  Search Feedback  ·  Notion  ·  Figma</text>
+<text x="45" y="232" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="16" fill="#354963" font-weight="600">검색 결과의 맥락을 살펴보고, 선별한 자료를 작업 공간에 연결합니다.</text>
+<rect x="45" y="255" width="444" height="356" rx="14" fill="#ffffff" stroke="#dce5f0"/>
+<rect x="65" y="275" width="39" height="28" rx="7" fill="#e8efff" stroke="none"/>
+<text x="75" y="295" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="14" fill="#2854ad" font-weight="700">01</text>
+<text x="116" y="296" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="21" fill="#10213b" font-weight="700">문제 정의</text>
+<text x="65" y="326" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="12" fill="#66758b" font-weight="400">자료를 찾은 뒤에도 평가와 정리에 시간이 필요합니다</text>
+<rect x="65" y="343" width="100" height="25" rx="12" fill="#e8efff" stroke="none"/>
+<text x="77" y="360" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="11" fill="#2752a4" font-weight="700">RESEARCH</text>
+<text x="65" y="392" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="19" fill="#172d4b" font-weight="700">많은 검색 결과</text>
+<text x="65" y="418" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="13" fill="#283548" font-weight="400">공식 자료, 후기, 플랫폼이 섞여 있어</text>
+<text x="65" y="438" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="13" fill="#283548" font-weight="400">어떤 자료를 먼저 볼지 판단하기 어렵습니다.</text>
+<rect x="65" y="463" width="404" height="100" rx="10" fill="#f1f5fb" stroke="none"/>
+<text x="81" y="490" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="15" fill="#2451a3" font-weight="700">검색 결과 확인 → 페이지 비교 → 자료 정리</text>
+<text x="81" y="518" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="13" fill="#283548" font-weight="400">탐색과 협업 도구 사이를 반복해서 오가야 합니다.</text>
+<rect x="511" y="255" width="444" height="356" rx="14" fill="#ffffff" stroke="#dce5f0"/>
+<rect x="531" y="275" width="39" height="28" rx="7" fill="#e8efff" stroke="none"/>
+<text x="541" y="295" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="14" fill="#2854ad" font-weight="700">02</text>
+<text x="582" y="296" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="21" fill="#10213b" font-weight="700">서비스 흐름</text>
+<text x="531" y="326" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="12" fill="#66758b" font-weight="400">검색 결과에서 시작해 기존 작업 공간으로 이어집니다</text>
+<rect x="531" y="342" width="404" height="39" rx="8" fill="#f2f6fc" stroke="none"/>
+<text x="544" y="367" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="13" fill="#426bb4" font-weight="700">01</text>
+<text x="587" y="367" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="14" fill="#203754" font-weight="600">검색 결과 확인</text>
+<rect x="531" y="391" width="404" height="39" rx="8" fill="#f2f6fc" stroke="none"/>
+<text x="544" y="416" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="13" fill="#426bb4" font-weight="700">02</text>
+<text x="587" y="416" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="14" fill="#203754" font-weight="600">좋아요·댓글 확인</text>
+<rect x="531" y="440" width="404" height="39" rx="8" fill="#f2f6fc" stroke="none"/>
+<text x="544" y="465" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="13" fill="#426bb4" font-weight="700">03</text>
+<text x="587" y="465" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="14" fill="#203754" font-weight="600">자료와 코멘트 저장</text>
+<rect x="531" y="489" width="404" height="39" rx="8" fill="#f2f6fc" stroke="none"/>
+<text x="544" y="514" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="13" fill="#426bb4" font-weight="700">04</text>
+<text x="587" y="514" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="14" fill="#203754" font-weight="600">작업 공간에서 활용</text>
+<rect x="45" y="630" width="444" height="356" rx="14" fill="#ffffff" stroke="#dce5f0"/>
+<rect x="65" y="650" width="39" height="28" rx="7" fill="#e8efff" stroke="none"/>
+<text x="75" y="670" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="14" fill="#2854ad" font-weight="700">03</text>
+<text x="116" y="671" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="21" fill="#10213b" font-weight="700">검색 결과 평가</text>
+<text x="65" y="701" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="12" fill="#66758b" font-weight="400">탐색 화면에서 사이트의 맥락과 반응을 확인합니다</text>
+<rect x="65" y="717" width="404" height="163" rx="10" fill="#f7f9fc" stroke="#dce5f0"/>
+<text x="82" y="744" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="14" fill="#66758b" font-weight="400">서울 꼭 가봐야 할 맛집</text>
+<rect x="82" y="758" width="370" height="1" rx="0" fill="#dce5f0" stroke="none"/>
+<text x="82" y="786" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="18" fill="#315fc0" font-weight="700">검색 결과 제목</text>
+<text x="82" y="809" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="12" fill="#748196" font-weight="400">사이트 주소와 검색 결과 요약</text>
+<rect x="82" y="823" width="65" height="24" rx="12" fill="#ffedbd" stroke="none"/>
+<text x="93" y="839" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="11" fill="#684a13" font-weight="600">블로그</text>
+<rect x="154" y="823" width="75" height="24" rx="12" fill="#ffedbd" stroke="none"/>
+<text x="165" y="839" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="11" fill="#684a13" font-weight="600">내돈내산</text>
+<text x="352" y="840" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="12" fill="#34465f" font-weight="400">♡  좋아요</text>
+<text x="65" y="915" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="13" fill="#33435a" font-weight="400">좋아요와 댓글로 자료에 대한 의견을 남깁니다.</text>
+<text x="65" y="938" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="13" fill="#33435a" font-weight="400">태그는 출처와 페이지 정보를 확인하는 단서입니다.</text>
+<text x="65" y="966" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="11" fill="#8895a8" font-weight="400">※ 위 화면은 기능 설명을 위한 예시 구성</text>
+<rect x="511" y="630" width="444" height="356" rx="14" fill="#ffffff" stroke="#dce5f0"/>
+<rect x="531" y="650" width="39" height="28" rx="7" fill="#e8efff" stroke="none"/>
+<text x="541" y="670" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="14" fill="#2854ad" font-weight="700">04</text>
+<text x="582" y="671" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="21" fill="#10213b" font-weight="700">작업 공간 연동</text>
+<text x="531" y="701" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="12" fill="#66758b" font-weight="400">선택한 자료를 코멘트와 함께 전달합니다</text>
+<rect x="531" y="722" width="404" height="92" rx="10" fill="#f1f5fc" stroke="none"/>
+<text x="550" y="751" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="27" fill="#162b48" font-weight="700">N</text>
+<text x="589" y="750" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="17" fill="#172e50" font-weight="700">Notion</text>
+<text x="589" y="777" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="12" fill="#283548" font-weight="400">URL과 코멘트를 저장하고 주제 관련도를 확인</text>
+<text x="589" y="797" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="12" fill="#283548" font-weight="400">주제별 자료 정리에 활용</text>
+<rect x="531" y="831" width="404" height="92" rx="10" fill="#f1f5fc" stroke="none"/>
+<text x="550" y="861" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="27" fill="#315fc0" font-weight="700">F</text>
+<text x="589" y="860" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="17" fill="#172e50" font-weight="700">Figma</text>
+<text x="589" y="887" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="12" fill="#283548" font-weight="400">페이지 캡처와 코멘트를 캔버스에 전달</text>
+<text x="589" y="907" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="12" fill="#283548" font-weight="400">시각적 레퍼런스 공유에 활용</text>
+<text x="531" y="959" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="12" fill="#426087" font-weight="400">선별한 정보가 리서치와 디자인 작업으로 이어집니다.</text>
+<rect x="45" y="1005" width="444" height="356" rx="14" fill="#ffffff" stroke="#dce5f0"/>
+<rect x="65" y="1025" width="39" height="28" rx="7" fill="#e8efff" stroke="none"/>
+<text x="75" y="1045" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="14" fill="#2854ad" font-weight="700">05</text>
+<text x="116" y="1046" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="21" fill="#10213b" font-weight="700">시스템 구성</text>
+<text x="65" y="1076" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="12" fill="#66758b" font-weight="400">확장 프로그램과 서버, 외부 작업 도구를 연결합니다</text>
+<rect x="65" y="1091" width="121" height="65" rx="9" fill="#e9f0fd" stroke="none"/>
+<text x="77" y="1117" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="15" fill="#214d98" font-weight="700">Chrome</text>
+<text x="77" y="1139" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="12" fill="#283548" font-weight="400">확장 프로그램</text>
+<text x="194" y="1131" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="21" fill="#91a6c4" font-weight="400">→</text>
+<rect x="219" y="1091" width="105" height="65" rx="9" fill="#e9f0fd" stroke="none"/>
+<text x="231" y="1117" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="14" fill="#214d98" font-weight="700">Spring Boot</text>
+<text x="231" y="1139" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="12" fill="#283548" font-weight="400">API 서버</text>
+<text x="332" y="1131" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="21" fill="#91a6c4" font-weight="400">→</text>
+<rect x="357" y="1091" width="111" height="65" rx="9" fill="#e9f0fd" stroke="none"/>
+<text x="370" y="1117" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="15" fill="#214d98" font-weight="700">MySQL</text>
+<text x="370" y="1139" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="12" fill="#283548" font-weight="400">데이터 저장</text>
+<text x="66" y="1190" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="13" fill="#33435a" font-weight="400">•  검색 결과의 URL과 태그·반응 정보를 조회</text>
+<text x="66" y="1219" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="13" fill="#33435a" font-weight="400">•  좋아요와 댓글을 저장하고 다시 확인</text>
+<text x="66" y="1248" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="13" fill="#33435a" font-weight="400">•  Notion과 Figma에 자료와 코멘트 전달</text>
+<text x="66" y="1312" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="11" fill="#77879c" font-weight="400">구현 기술  ·  TypeScript  ·  Java  ·  Spring Boot  ·  MySQL</text>
+<rect x="511" y="1005" width="444" height="356" rx="14" fill="#ffffff" stroke="#dce5f0"/>
+<rect x="531" y="1025" width="39" height="28" rx="7" fill="#e8efff" stroke="none"/>
+<text x="541" y="1045" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="14" fill="#2854ad" font-weight="700">06</text>
+<text x="582" y="1046" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="21" fill="#10213b" font-weight="700">기대 효과</text>
+<text x="531" y="1076" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="12" fill="#66758b" font-weight="400">정보를 고르고 공유하는 과정을 한 화면에서 시작합니다</text>
+<rect x="531" y="1092" width="404" height="65" rx="9" fill="#eaf1ff" stroke="none"/>
+<text x="549" y="1119" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="16" fill="#214c92" font-weight="700">01  탐색</text>
+<text x="549" y="1143" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="13" fill="#283548" font-weight="400">자료 유형과 반응을 검색 결과에서 확인</text>
+<rect x="531" y="1170" width="404" height="65" rx="9" fill="#f2f6fc" stroke="none"/>
+<text x="549" y="1197" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="16" fill="#214c92" font-weight="700">02  검토</text>
+<text x="549" y="1221" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="13" fill="#283548" font-weight="400">댓글을 통해 자료를 볼 때 참고할 맥락 기록</text>
+<rect x="531" y="1248" width="404" height="65" rx="9" fill="#f2f6fc" stroke="none"/>
+<text x="549" y="1275" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="16" fill="#214c92" font-weight="700">03  협업</text>
+<text x="549" y="1299" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="13" fill="#283548" font-weight="400">선별한 자료를 기존 작업 공간에 정리·공유</text>
+<text x="46" y="1390" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="12" fill="#7b8ba0" font-weight="700">2026 CAPSTONE DESIGN</text>
+<text x="685" y="1390" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="11" fill="#8290a2" font-weight="400">팀명 · 팀원 · 지도교수  |  기입 필요</text>
+</svg>

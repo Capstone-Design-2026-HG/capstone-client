@@ -4,6 +4,7 @@
   "version": "1.0",
   "permissions": ["storage", "activeTab", "scripting", "identity", "debugger", "tabs"],
   "host_permissions": [
+    "<all_urls>",
     "https://www.google.com/*",
     "http://35.172.181.64:8080/*",
     "http://localhost:8080/*"
@@ -19,6 +20,10 @@
     {
       "matches": ["https://www.google.com/*"],
       "js": ["content.js"]
+    },
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["page-toolbar.js"]
     }
   ]
 }

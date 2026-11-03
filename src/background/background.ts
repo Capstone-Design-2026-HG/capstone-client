@@ -26,13 +26,13 @@ const getMockHash = (url: string) => {
 
 console.log("[BG] background.ts 로드됨");
 
-const fetchWithTimeout = async (url: string, options: RequestInit) => {
+const fetchWithTimeout = async (url: string, options: RequestInit, timeoutMs = FETCH_TIMEOUT_MS) => {
   const controller = new AbortController();
 
   const timer = setTimeout(() => {
     controller.abort();
     console.warn("[BG] fetch 타임아웃:", url);
-  }, FETCH_TIMEOUT_MS);
+  }, timeoutMs);
 
   try {
     const res = await fetch(url, {
@@ -186,7 +186,7 @@ chrome.runtime.onConnect.addListener((port) => {
           const res = await fetchWithTimeout(`${BASE_URL}/api/links/batch`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ urls: message.urls, userId }),
+            body: JSON.stringify({ urls: message.urls, userId, pageInfo: message.pageInfo }),
           });
           data = await res.json();
         }
@@ -250,16 +250,80 @@ chrome.runtime.onConnect.addListener((port) => {
           body: JSON.stringify({
             userId: await getUserId(),
             pageId: message.pageId,
+            description: message.description,
+            comment: message.comment,
+            selectedText: message.selectedText,
+            imageBase64: message.imageBase64,
+            captureKind: message.captureKind,
             title: message.title,
             url: message.url,
           }),
-        });
+        }, 60000);
 
         data = await res.json();
 
         console.log("[BG] Notion 저장 완료:", data);
       }
 
+      else if (type === "CAPTURE_CURRENT_PAGE") {
+        const tab = port.sender?.tab;
+        if (!tab?.id || tab.windowId === undefined) throw new Error("현재 탭을 확인할 수 없습니다.");
+        const active = await chrome.tabs.query({active: true, windowId: tab.windowId});
+        if (active[0]?.id !== tab.id) throw new Error("캡처할 탭을 먼저 활성화해 주세요.");
+        const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, {format: "png"});
+        data = {success: true, data: {imageBase64: dataUrl.split(",")[1]}};
+      }
+      else if (type === "CAPTURE_FULL_IN_NEW_TAB") {
+        const sourceId = port.sender?.tab?.id;
+        if (!sourceId) throw new Error("현재 페이지를 확인할 수 없습니다.");
+        const source = await chrome.tabs.get(sourceId);
+        if (source.windowId === undefined || !source.url) throw new Error("현재 페이지를 확인할 수 없습니다.");
+        const url = new URL(source.url);
+        if (!['http:', 'https:'].includes(url.protocol)) throw new Error("이 페이지는 전체 캡처를 지원하지 않습니다.");
+        const temporary = await chrome.tabs.create({url: url.href, windowId: source.windowId, active: false});
+        if (temporary.id === undefined) throw new Error("캡처용 탭을 열 수 없습니다.");
+        const tabId = temporary.id, target = {tabId};
+        let attached = false;
+        try {
+          await new Promise<void>((resolve, reject) => {
+            let settled = false;
+            const finish = (error?: Error) => { if (settled) return; settled = true; clearTimeout(timeout); chrome.tabs.onUpdated.removeListener(updated); chrome.tabs.onRemoved.removeListener(removed); error ? reject(error) : resolve(); };
+            const updated = (id: number, info: {status?: string}) => { if (id === tabId && info.status === 'complete') finish(); };
+            const removed = (id: number) => { if (id === tabId) finish(new Error('캡처용 탭이 닫혔습니다.')); };
+            const timeout = setTimeout(() => finish(new Error('캡처할 페이지를 불러오지 못했습니다.')), 30000);
+            chrome.tabs.onUpdated.addListener(updated); chrome.tabs.onRemoved.addListener(removed);
+            chrome.tabs.get(tabId).then(tab => { if (tab.status === 'complete') finish(); }).catch(() => finish(new Error('캡처용 탭을 확인할 수 없습니다.')));
+          });
+          await new Promise(resolve => setTimeout(resolve, 1200));
+          await chrome.scripting.executeScript({target, func: () => { const toolbar = document.getElementById('search-rating-toolbar'); if (toolbar) toolbar.style.setProperty('visibility', 'hidden', 'important'); }});
+          await chrome.debugger.attach(target, '1.3'); attached = true;
+          await chrome.debugger.sendCommand(target, 'Emulation.setDeviceMetricsOverride', {
+            width: Math.max(320, Math.min(1600, source.width || 1440)), height: Math.max(300, Math.min(1200, source.height || 900)), deviceScaleFactor: 1, mobile: false
+          });
+          await new Promise(resolve => setTimeout(resolve, 500));
+          const metrics = await chrome.debugger.sendCommand(target, 'Page.getLayoutMetrics') as {cssContentSize: {width: number; height: number}};
+          const width = Math.ceil(metrics.cssContentSize.width), height = Math.ceil(metrics.cssContentSize.height);
+          if (!width || !height || width > 16000 || height > 30000 || width * height > 60_000_000) throw new Error('페이지가 너무 커서 전체 캡처할 수 없습니다. 필요한 영역을 선택해 주세요.');
+          const screenshot = await chrome.debugger.sendCommand(target, 'Page.captureScreenshot', {
+            format: 'png', captureBeyondViewport: true, clip: {x: 0, y: 0, width, height, scale: 1}
+          }) as {data: string};
+          if (!screenshot?.data) throw new Error('전체 페이지를 캡처하지 못했습니다.');
+          data = {success: true, data: {imageBase64: screenshot.data}};
+        } finally {
+          if (attached) await chrome.debugger.detach(target).catch(() => {});
+          await chrome.tabs.remove(tabId).catch(() => {});
+        }
+      }
+      else if (type === "SAVE_CURRENT_TO_FIGMA") {
+        const res = await fetchWithTimeout(`${BASE_URL}/api/figma/capture`, {
+          method: "POST", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({userId: await getUserId(), title: message.title, url: message.url,
+            comment: message.comment, imageBase64: message.imageBase64,
+            fileKey: message.fileKey, pageNodeId: message.pageNodeId}),
+        }, 60000);
+        const body = await res.json();
+        data = res.ok ? {success: true, data: body} : {success: false, message: body?.message ?? body?.error ?? "Figma 저장에 실패했습니다."};
+      }
       else if (type === "GET_FIGMA_CONNECTION") {
         const userId = await getUserId();
         const res = await fetchWithTimeout(
@@ -341,18 +405,18 @@ chrome.runtime.onConnect.addListener((port) => {
           )) as { cssContentSize: { width: number; height: number } };
 
           const pageWidth = Math.ceil(metrics.cssContentSize.width);
-          const pageHeight = Math.min(Math.ceil(metrics.cssContentSize.height), 16384);
+          // scale 1.0 고정(너비 1440px 유지), 4096px 초과 시 잘림
+          const pageHeight = Math.min(Math.ceil(metrics.cssContentSize.height), 4096);
 
           console.log("[Figma] 페이지 크기:", pageWidth, "x", pageHeight);
 
-          // 전체 페이지 스크린샷 (뷰포트 밖까지 캡처)
           const screenshot = (await chrome.debugger.sendCommand(
             { tabId },
             "Page.captureScreenshot",
             {
               format: "png",
               captureBeyondViewport: true,
-              clip: { x: 0, y: 0, width: pageWidth, height: pageHeight, scale: 1 },
+              clip: { x: 0, y: 0, width: pageWidth, height: pageHeight, scale: 1.0 },
             }
           )) as { data: string };
 
@@ -368,6 +432,7 @@ chrome.runtime.onConnect.addListener((port) => {
               userId,
               title,
               url: targetUrl,
+              comment: message.comment,
               imageBase64: screenshot.data,
               fileKey: (message.fileKey as string) ?? null,
               pageNodeId: (message.pageNodeId as string) ?? null,
@@ -399,8 +464,7 @@ chrome.runtime.onConnect.addListener((port) => {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 url: message.url,
-                userId: "test-user-1",
-                rating: message.rating ?? 4,
+                userToken: await getUserId(),
                 comment: message.comment,
                 tags: message.tags ?? [],
               }),
